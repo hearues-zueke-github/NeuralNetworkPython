@@ -1,0 +1,9 @@
+**/*.class
+*.xml
+*.pyc
+!/*.pyc
+**/*.pyc
+**/*.lyx~
+**/*.lyx#
+NeuralNetworkNetbeansJava/NeuralNetworkNetbeansJava.iml
+.idea/

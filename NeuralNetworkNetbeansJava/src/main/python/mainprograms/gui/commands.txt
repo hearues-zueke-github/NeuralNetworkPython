@@ -1,0 +1,2 @@
+pyuic4 NeuronalNetworkCheckNumbers.ui -o NeuronalNetworkCheckNumbers.py
+designer

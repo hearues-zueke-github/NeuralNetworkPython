@@ -1,0 +1,138 @@
+#! /usr/bin/python2.7
+# -*- coding: utf-8 -*-
+
+import numpy as np
+
+hash_bytes = 8
+rounds = 10
+
+sbox_8bit = np.array([
+    0xA5, 0x6E, 0x92, 0x68, 0xBC, 0x3F, 0xCF, 0x1B, 0xFD, 0xCD, 0x5A, 0x65, 0x61, 0xF6, 0xAD, 0xEA,
+    0x8F, 0x5B, 0xEE, 0x5E, 0x40, 0x99, 0xBA, 0x3C, 0xA7, 0xF9, 0x51, 0x5D, 0xEB, 0xCB, 0x11, 0x00,
+    0xC2, 0x8B, 0xFA, 0xD4, 0x97, 0x4A, 0x87, 0x90, 0xE2, 0x7C, 0x1E, 0x43, 0x72, 0x35, 0x2B, 0x62,
+    0x8E, 0x4C, 0x94, 0x38, 0x48, 0x03, 0x9B, 0x64, 0xA2, 0x45, 0xD3, 0x74, 0x70, 0xA4, 0x16, 0x9F,
+    0xFB, 0x08, 0x9C, 0x04, 0x60, 0x22, 0x33, 0xB0, 0x6A, 0x0E, 0x9D, 0x17, 0xD1, 0xA3, 0x23, 0x12,
+    0x26, 0xED, 0x6D, 0x2A, 0xF3, 0x96, 0x3E, 0xC5, 0xA6, 0xB7, 0xC1, 0xDF, 0x2E, 0xFF, 0x28, 0x0D,
+    0x25, 0x76, 0xC7, 0xB3, 0x07, 0x52, 0x4B, 0x10, 0x46, 0x66, 0xBE, 0xCA, 0xE5, 0x05, 0x85, 0xBB,
+    0xAF, 0xE4, 0xF2, 0xE0, 0xC8, 0xBD, 0x31, 0xDA, 0x7F, 0x0B, 0x32, 0x3D, 0x2F, 0x1D, 0x39, 0x37,
+    0x19, 0xD0, 0xC0, 0xAE, 0xE8, 0x3A, 0x67, 0x6B, 0xF8, 0x09, 0xAB, 0xF1, 0xC3, 0xAA, 0xB1, 0xD9,
+    0x29, 0x0C, 0x49, 0x1F, 0x0A, 0x6C, 0xE6, 0xE7, 0x77, 0xE3, 0x5C, 0xF0, 0xA0, 0x7E, 0xEF, 0x63,
+    0xF5, 0x98, 0x4D, 0x7B, 0x58, 0x83, 0x89, 0x4E, 0xA1, 0xD2, 0x36, 0x8C, 0x93, 0xB4, 0x30, 0x75,
+    0xB6, 0x18, 0x1C, 0xB9, 0xDE, 0xC4, 0xC9, 0x2C, 0xA9, 0x7A, 0x20, 0x82, 0xD8, 0x14, 0x02, 0x9E,
+    0x8D, 0xCE, 0xA8, 0xD7, 0x53, 0x69, 0xEC, 0x81, 0x0F, 0x3B, 0x34, 0xB2, 0xDD, 0x95, 0xE9, 0xC6,
+    0x1A, 0x55, 0x44, 0x80, 0x57, 0x79, 0xF4, 0x8A, 0x50, 0xFC, 0x15, 0x59, 0x06, 0x4F, 0xCC, 0x9A,
+    0x7D, 0x71, 0x21, 0xB8, 0xDB, 0x2D, 0xF7, 0x56, 0xE1, 0x78, 0xAC, 0x41, 0x27, 0xFE, 0x6F, 0x73,
+    0x01, 0x24, 0xDC, 0x84, 0x86, 0x13, 0x47, 0x42, 0xBF, 0x54, 0xD6, 0x88, 0xD5, 0x91, 0xB5, 0x5F])
+
+def get_start_nonce():
+    start_nonce = np.array([0x20, 0x40, 0x80, 0xF0, 0x52, 0x42, 0x32, 0x12]).astype(np.uint8)
+    if hash_bytes != 8:
+        if hash_bytes < 8:
+            return start_nonce[:hash_bytes]
+
+        new_start_nonce = np.zeros((hash_bytes//8+1, 8)).astype(np.uint8)
+        new_start_nonce[:] = start_nonce
+
+        return new_start_nonce.reshape((-1, ))[:hash_bytes]
+
+    return start_nonce
+
+convert_to_hex_string = lambda x: "".join(["{:02X}".format(i) for i in x])
+
+def hash_round_2_byte(hash_val, nonce):
+    hash_val = hash_val.copy()
+    
+    for i in xrange(0, hash_bytes-1):
+        hash_val[i+1] = hash_val[i] ^ sbox_8bit[hash_val[i+1] ^ nonce[i]]
+    hash_val[0] = hash_val[hash_bytes-1] ^ sbox_8bit[hash_val[0] ^ nonce[hash_bytes-1]]
+
+    return hash_val
+
+def hash_round_3_byte(hash_val, nonce):
+    hash_val = hash_val.copy()
+    
+    for i in xrange(0, hash_bytes-2):
+        hash_val[i+2] = hash_val[i] ^ sbox_8bit[hash_val[i+1] ^ sbox_8bit[hash_val[i+2] ^ nonce[i]]]
+    hash_val[0] = hash_val[hash_bytes-2] ^ sbox_8bit[hash_val[hash_bytes-1] ^ sbox_8bit[hash_val[0] ^ nonce[hash_bytes-2]]]
+    hash_val[1] = hash_val[hash_bytes-1] ^ sbox_8bit[hash_val[0] ^ sbox_8bit[hash_val[1] ^ nonce[hash_bytes-1]]]
+
+    return hash_val
+
+def hash_function(nonce):
+    if nonce.shape[0] % hash_bytes != 0:
+        nonce = np.hstack((nonce, np.zeros((hash_bytes-(nonce.shape[0]%hash_bytes))).astype(np.uint8)))
+
+    hash_val = get_start_nonce()
+
+    nonce = nonce.reshape((-1, hash_bytes))
+
+    for nonce_i in nonce:
+        for _ in xrange(0, rounds):
+            hash_val = hash_round_2_byte(hash_val, nonce_i)
+            hash_val = hash_round_3_byte(nonce_i, hash_val)
+
+    return hash_val
+
+def hash_function_str(string):
+    bytes_array = np.array(list(map(ord, string))).astype(np.uint8)
+    return hash_function(bytes_array)
+
+def test():
+    def count_bits(n):
+        amount_bits = 0
+        while n > 0:
+            if n % 2 == 1:
+                amount_bits += 1
+            n //= 2
+        return amount_bits
+
+    def get_amount_bits_mask():
+        amount_bits_list = np.zeros((256, )).astype(np.int)
+        for i in xrange(0, 256):
+            amount_bits_list[i] = count_bits(i)
+        return amount_bits_list
+
+    def get_amount_similar_bits(nonce_1, nonce_2):
+        similar_bits = 0
+        not_similar_bits = 0
+        for i, j in zip(nonce_1, nonce_2):
+            similar_bits += 8 - amount_bits_list[i ^ j]
+            not_similar_bits += amount_bits_list[i ^ j]
+
+        return similar_bits, not_similar_bits
+
+    a = "abcdefghjalsdfjöadsölkfj"
+
+    b = np.array(list(map(ord, a))).astype(np.uint8)
+
+    h = hash_function(b)
+
+    print("h: {}".format(h))
+    print("convert_to_hex_string(h): 0x{}".format(convert_to_hex_string(h)))
+
+    h_2 = hash_function_str(a)
+
+    print("h_2: {}".format(h_2))
+    print("convert_to_hex_string(h_2): 0x{}".format(convert_to_hex_string(h_2)))
+
+    string = "abcdefghijklmnopqrstuvwxyz"
+
+    def get_s_h(sring, i):
+        s_concat = string + "{:06}".format(i)
+        h_string = convert_to_hex_string(hash_function_str(s_concat))
+
+        return s_concat, h_string
+
+    s_concat_0, h_string_0 = get_s_h(string, 0)
+    print("s_concat_0: {}, h_string_0: 0x{}".format(s_concat_0, h_string_0))
+
+    for i in xrange(1, 100000):
+        s_concat, h_string = get_s_h(string, i)
+
+        print("s_concat: {}, h_string: 0x{}".format(s_concat, h_string))
+
+        if h_string_0 == h_string:
+            print("Found equal hashes for:")
+            print("s_concat_0: {}".format(s_concat_0))
+            print("s_concat:   {}".format(s_concat))
+            break
