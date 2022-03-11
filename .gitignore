@@ -7,3 +7,4 @@
 **/*.lyx#
 NeuralNetworkNetbeansJava/NeuralNetworkNetbeansJava.iml
 .idea/
+mnist_data/
