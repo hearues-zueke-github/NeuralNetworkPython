@@ -1,5 +1,7 @@
 #! /usr/bin/python3.10.2
 
+# pip installed libraries
+import dill
 import gzip
 import os
 import requests
@@ -22,6 +24,9 @@ from scipy.sparse import csr_matrix, coo_matrix
 from PIL import Image
 from typing import Dict
 
+# own libraries
+import utils
+
 from utils_platform import get_processor_name
 
 HOME_DIR = os.path.expanduser("~")
@@ -30,6 +35,7 @@ MAIN_PROJECT_PATH_DIR = os.path.join(PATH_ROOT_DIR, '../..')
 TEMP_DIR = MemoryTempfile().gettempdir()
 
 MNIST_DATA_DIR_PATH = os.path.join(MAIN_PROJECT_PATH_DIR, "mnist_data")
+utils.makedirs(MNIST_DATA_DIR_PATH)
 
 def download_files():
 	l_file_name_gz_file_name = [
@@ -75,15 +81,21 @@ def extract_train_test_data():
 		rows = arr_info[2]
 		cols = arr_info[3]
 
-		arr_train_images = np.fromfile(file=f, dtype=np.uint8, count=amount*rows*cols)
+		amount_total = amount * rows * cols
+		arr_train_images = np.fromfile(file=f, dtype=np.uint8, count=amount_total)
+		assert arr_train_images.shape[0] == amount_total
 
 	with open(file_path_train_labels, 'rb') as f:
-		arr_info_big = np.fromfile(file=f, dtype=np.int8, count=4*4)
-		arr_info = np.ndarray(shape=(4, ), dtype='>i4', buffer=arr_info_big)
+		arr_info_big = np.fromfile(file=f, dtype=np.int8, count=4*2)
+		arr_info = np.ndarray(shape=(2, ), dtype='>i4', buffer=arr_info_big)
 		assert arr_info[0] == 0x00000801
 		amount = arr_info[1]
 
-		arr_train_labels = np.fromfile(file=f, dtype=np.uint8, count=amount)
+		amount_total = amount
+		arr_train_labels = np.fromfile(file=f, dtype=np.uint8, count=amount_total)
+		print(f'amount_total: {amount_total}')
+		print(f'arr_train_labels.shape: {arr_train_labels.shape}')
+		assert arr_train_labels.shape[0] == amount_total
 
 	with open(file_path_test_images, 'rb') as f:
 		arr_info_big = np.fromfile(file=f, dtype=np.int8, count=4*4)
@@ -93,21 +105,33 @@ def extract_train_test_data():
 		rows = arr_info[2]
 		cols = arr_info[3]
 
-		arr_test_images = np.fromfile(file=f, dtype=np.uint8, count=amount*rows*cols)
+		amount_total = amount * rows * cols
+		arr_test_images = np.fromfile(file=f, dtype=np.uint8, count=amount_total)
+		assert arr_test_images.shape[0] == amount_total
 
 	with open(file_path_test_labels, 'rb') as f:
-		arr_info_big = np.fromfile(file=f, dtype=np.int8, count=4*4)
-		arr_info = np.ndarray(shape=(4, ), dtype='>i4', buffer=arr_info_big)
+		arr_info_big = np.fromfile(file=f, dtype=np.int8, count=4*2)
+		arr_info = np.ndarray(shape=(2, ), dtype='>i4', buffer=arr_info_big)
 		assert arr_info[0] == 0x00000801
 		amount = arr_info[1]
 
-		arr_test_labels = np.fromfile(file=f, dtype=np.uint8, count=amount)
+		amount_total = amount
+		arr_test_labels = np.fromfile(file=f, dtype=np.uint8, count=amount_total)
+		assert arr_test_labels.shape[0] == amount_total
+
+	arr_train_labels_onehot = np.zeros((arr_train_labels.shape[0], 10), dtype=arr_train_labels.dtype)
+	arr_test_labels_onehot = np.zeros((arr_test_labels.shape[0], 10), dtype=arr_test_labels.dtype)
+
+	arr_train_labels_onehot[np.arange(0, arr_train_labels.shape[0]), arr_train_labels] = 1
+	arr_test_labels_onehot[np.arange(0, arr_test_labels.shape[0]), arr_test_labels] = 1
 
 	d_data = {
 		'arr_train_images': arr_train_images,
 		'arr_train_labels': arr_train_labels,
+		'arr_train_labels_onehot': arr_train_labels_onehot,
 		'arr_test_images': arr_test_images,
 		'arr_test_labels': arr_test_labels,
+		'arr_test_labels_onehot': arr_test_labels_onehot,
 	}
 
 	return d_data
@@ -137,3 +161,18 @@ if __name__ == '__main__':
 
 	print('Create images from the data.')
 	create_images_from_data(d_data)
+
+	file_path_d_obj = os.path.join(MNIST_DATA_DIR_PATH, 'd_obj.pkl.gz')
+
+	d_obj = {
+		'arr_train_images': d_data['arr_train_images'].reshape((60000, 28*28)),
+		'arr_train_labels': d_data['arr_train_labels'],
+		'arr_train_labels_onehot': d_data['arr_train_labels_onehot'],
+		'arr_test_images': d_data['arr_test_images'].reshape((10000, 28*28)),
+		'arr_test_labels': d_data['arr_test_labels'],
+		'arr_test_labels_onehot': d_data['arr_test_labels_onehot'],
+	}
+
+	if not os.path.exists(file_path_d_obj):
+		with gzip.open(file_path_d_obj, 'wb') as f:
+			dill.dump(d_obj, f)
